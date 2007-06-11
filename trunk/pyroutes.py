@@ -1,42 +1,47 @@
 #! /usr/bin/env python
-# Dit programma leest een Tab Seperated Value (TSV) file met route info voor het maken van route-
-# beschrijvingen.
-# De data in de file is ge-organiseerd als:
-# [tussen-afstand]<tab>[totaal-afstand]<tab>route aanwijzing<tab>opmerking
-# Een regel die begint met een '#' in rij 3 of 4 wordt schuin weer gegeven.
-# Een plaatsnaam in rij 2, die met allemaal uppercase letter is geschreven, wordt vet afgedrukt.
-# Het programma schrijft de data weg als een LaTeX longtable file, die direct ge-compileerd kan worden
-# naar een Acrobat pdf of postscript file.
-# Voorbeeld van een text file voor een rit:
 #
-# 0[tab]0[tab]Via A4, A10-zuid, A10-oost ri Amsterdam[tab]
-# 46.5[tab][tab]RE bij afrit S114 Zeeburg[tab]
-# 1.2[tab][tab]Einde weg LI[tab]S114, Zuiderzeeweg
-# 1.1[tab][tab]2e VKL RE ri Noord (wit bord)[tab]
-# 1.3[tab]50[tab]ROT RE en direct SPL LI ri Durgerdam[tab]Liergouw
-# 2.0[tab][tab]Einde weg LI ri Ransdorp[tab]Dorpsweg Ransdorp
-# [tab][tab]RANSDORP[tab]
-# [tab][tab]# commentaar in rij 3[tab]# of 4 wordt schuin afgedrukt
+# This program reads a Tab Seperated Field text file with route directions to
+# make a route description for use in route-holders.
+# The data in the text file must be formatted as follows:
+# distance since last direction<tab>total distance<tab>route-direction<tab>Remarks
+# Field 3 or 4 starting with '#' will be shown emphasized.
+# Field 2 starting with '@' will be shown in bold.
+# Field 1 starting with '<' wil start an alternative line numbering, in Roman Numerals.
+# Field 1 starting with '>' ends the alternative line numbering.
+# The program writes the data as a LaTeX longtable, which can be compiled to a
+# dvi/pdf/ps file.
+# Example of a text file for a route (in Dutch):
 #
-# De [tab] characters moeten 'echte' tabs zijn, geen 'soft-tabs' met spaties.
-# De laatste, derde, [tab] kan eventueel worden weggelaten, het programma maakt hier melding van en
-# past, waar nodig, de interne file structuur aan. Als er te weinig velden worden gelezen in een rij
-# maakt het programma hier ook melding van, maar dan wordt de betreffende rij niet gebruikt.
-# Bij teveel velden in een rij worden alleen de eerste 4 gebruikt.
+# 0	0	Via A4, A10-south, A10-east to Amsterdam	
+# 46.5		RT at exit S114 Zeeburg	
+# 1.2		T-FRK LT	S114, Zuiderzeeweg
+# 1.1		2nd TFL RT to Noord (white sign)	
+# 1.3	50	ROT RT and immediately FRK LT to Durgerdam	Liergouw
+# 2.0		T-FRK LT to Ransdorp	Dorpsweg Ransdorp
+# 	@RANSDORP		
+# 		# comment in field 3	# or field 4 will be printed empasized
+#
+# The [tab] charcters must be 'real' tabs, not "soft-tabs" with spaces.
+# The last, thirth [tab] can be left out, in that case the program
+# notices this and adds the replacing struture by it self. If too little
+# fields in a row are read, the program also notices this, but in that
+# case the offending row is not used.
+# In case of too many fields in a row, only the first four are used.
 '''
-Gebruik:
-FormatRoutes [-s N.N] [-h] [-t "titel"] [-z NN] [TSV file]
-Opties: -h          deze help
-        -s N.N      relatieve hoogte van tabel rijen, tussen 0.7 en 3.0
-        -t "titel"  Optionele titel voor de route
-        -d          Draft vesie; lijnen voor afstanden in de tabel opgevuld met puntjes, -s wordt 2.0 bij
-                    gebruik van -d.
-        -z NN       Editie nummer voor een Zeepaardjesrit-versie; de file "ZPR-Voorpagina.tex" wordt
-                    geladen en gebruikt om de voorpagina mee te maken.
-De file die geschreven wordt is de naam van de invoerfile, met het deel achter
-'.' vervangen door 'tex'.
-De titel wordt ook uit de naam van de input file gehaald, tenzij de gebruiker
-een aparte titel aangeeft met -t
+Usage:
+FormatRoutes [-s N.N] [-h] [-t "title"] [-z NN] [TSV file]
+Options: -h          this help
+         -s N.N      relative height of table rows, between 0.7 and 3.0
+         -t "title"  Optional title for the route
+         -d          Draft version; table rows for distances filled with dots,
+                     -s becomes 2.0 when -d is used.
+         -z NN       Edition nummer for a "Zeepaardjesrit" -version; the file
+                     "ZPR-Voorpagina.tex" will be loaded and used to make the
+                     frontpage with.
+The file that is written has the name of the input-file, with the suffix
+(e.g. 'txt') replaced by 'tex'.
+Also the title is taken from the name of the input-file, unless the user
+supplies a seperate title with -t "sometitle".
 '''
 import os
 import sys
@@ -50,6 +55,22 @@ def usage(*args):
     print __doc__
     sys.exit(1)
 
+# decToRoman from ASPN
+coding = zip(
+    [1000,900,500,400,100,90,50,40,10,9,5,4,1],
+    ["M","CM","D","CD","C","XC","L","XL","X","IX","V","IV","I"]
+)
+
+def decToRoman(num):
+    if num <= 0 or num >= 4000 or int(num) != num:
+        raise ValueError('Input should be an integer between 1 and 3999')
+    result = []
+    for d, r in coding:
+        while num >= d:
+            result.append(r)
+            num -= d
+    return ''.join(result)
+
 def UserInput():
     '''
     UserInput asks for the filename of the Tab Seperated Route File to parse.
@@ -62,12 +83,12 @@ def UserInput():
         os.system('clear')
 
     try:
-        RouteFile = raw_input("De naam van de TSV route file svp: ")
+        RouteFile = raw_input("The name of the TSV route file please: ")
         f = open(RouteFile, 'r')
     except IOError, msg:
-        usage("Kan %s niet lezen.\n %s" % (repr(RouteFile), str(msg)))
+        usage("Cannot read %s.\n %s" % (repr(RouteFile), str(msg)))
     f.close()
-    UserTitle = str(raw_input("Een titel voor de route svp (<Enter> voor gebruik van input filenaam): "))
+    UserTitle = str(raw_input("A title for the route please (<Enter> for usage of the input filename): "))
     if UserTitle:
         Title = UserTitle
     else:
@@ -93,22 +114,22 @@ def MakeFrontMatter(ZPRedition):
             FrontMatter = NewCommand + ''.join(f.readlines())
             f.close()
         except IOError, msg:
-            usage("Kan %s niet lezen.\n %s" % (repr(f), str(msg)))
+            usage("Cannot read %s.\n %s" % (repr(f), str(msg)))
     else:
         FrontMatter = [
-        '\\hspace*{0.5cm}\\underline{Gebruikte afkortingen:}\\\\\n',
+        '\\hspace*{0.5cm}\\underline{Used acronyms:}\\\\\n',
         '\\textbf{\\begin{tabular}{ll}\n',
-        'KRS: & Kruising\\\\\n',
-        'LI: & Links\\\\\n',
-        'PNB: & PlaatsNaamBord\\\\\n',
-        'RE: & Rechts\\\\\n',
-        'ri: & richting\\\\\n',
-        'ROT: & Rotonde\\\\\n',
-        'SPL: & Splitsing\\\\\n',
-        'VKL: & Verkeerslicht\\\\\n',
-        'VRK: & Voorrangskruising\\\\\n',
-        'VRW: & Voorrangsweg\\\\\n',
-        '\\underline{NOORDWIJK}: & Plaatsnaambord\\\\\n',
+        'CRS: & Crossing\\\\\n',
+        'LT: & Left\\\\\n',
+        'PNS: & Placename Sign\\\\\n',
+        'RT: & Right\\\\\n',
+        'dir: & direction\\\\\n',
+        'ROT: & Round-about\\\\\n',
+        'FRK: & Road fork\\\\\n',
+        'TFL: & Traffic Light\\\\\n',
+        'YaC: & Yield at Crossing\\\\\n',
+        'YaR: & Yield at Road\\\\\n',
+        '\\underline{NOORDWIJK}: & Placename Sign\\\\\n',
         '\\end{tabular}}\n']
     return FrontMatter
 
@@ -124,17 +145,17 @@ def ReadTSVRoute(RouteFile):
     InvalidLines = 0
     for row in TSVRouteRead:
         if len(row) < 3:
-            print "Rij wordt niet gebruikt.\nAantal velden in deze rij is %d (minimaal 3), aanpassen svp." % len(row)
+            print "Row will not be used.\nNumber of fields in this row is %d (minimal 3), edit please." % len(row)
             print `row`
             InvalidLines += 1
         elif len(row) == 3:
-            print "Aantal velden in deze rij is 3, de rij wordt opgevuld."
-            print "Oud:\t%s" % `row`
+            print "The number of fields in this row is 3, the row will be appended."
+            print "Old:\t%s" % `row`
             row.append('')
-            print "Nieuw:\t%s" % `row`
+            print "New:\t%s" % `row`
             RouteList.append(row)
         elif len(row) > 4:
-            print "Aantal velden in deze rij is %d, aanpassen svp\n (eerste 4 velden van de rij worden gebruikt)." % len(row)
+            print "The number of fields in this row is %d, edit please\n (first 4 fields of the row are used)." % len(row)
             print `row`
             RouteList.append(row)
         else:
@@ -154,31 +175,47 @@ def FormatRoute(RouteList, FrontMatter, Title, Stretch, Draft):
     '''
     NewRouteList = []
     RowNum = 0
-    # match all names in capitals, 4 chars or longer, maybe followed by a whitespace and another name in capitals
-    #PlaatsNaam = re.compile(r'^[A-Z]{4,}\s?[A-Z]*')
-    # Match all names starting with '@'
+    AltRowNum = 1 # ASCII 'a'
+    UseAltRowNum = False
+    # Community namesign matches all names starting with '@'
     PlaatsNaam = re.compile(r'^@(.*)$')
-    # match a string that starts with a hash
+    # Comment matches a string that starts with a hash
     Comment =   re.compile(r'^#(.*)$')
+    AltRouteStart = re.compile(r'^<(.*)$')
+    AltRouteEnd = re.compile(r'^>(.*)$')
     EmptyRow = '& & & \\\\\n'
     ArrayStretch = '\\renewcommand{\\arraystretch}{' + Stretch + '}\n'
     TitleRow = '\\begin{center}\\framebox[10cm]{\\begin{LARGE}\\textbf{' + Title + '}\\end{LARGE}}\\end{center}\n'
 
     PreAmble = [
-    '\\documentclass[a4paper,12pt]{article}\n',
+    '\\documentclass[dvips,a4paper,12pt]{article}\n',
     '\\usepackage{longtable}\n',
     '\\usepackage[T1]{fontenc}\n',
     '\\usepackage[latin1]{inputenc}\n',
     '\\usepackage[]{times}\n',
-    '\\usepackage[noheadfoot,margin=1cm,centering]{geometry}\n',
-    '\\pagestyle{plain}\n',
+    '\\usepackage{fancyhdr}\n',
+    '\\usepackage{lastpage}\n',
+    '\\usepackage[margin=1cm,centering]{geometry}\n',
+    '\\pagestyle{fancy}\n',
+    '\\renewcommand{\\headrulewidth}{0pt}\n',
+    '\\setlength{\\textheight}{27cm}\n',
+    '\\fancyfoot[L]{MCN ' + Title + '}\n',
+    '\\fancyfoot[C]{\\thepage / \\pageref{LastPage}}\n',
+    '\\fancyfoot[R]{\\*Datum\\*}\n',
+    '\\def\\BackgroundEPS#1#2#3#4{%\n',
+    '\\special{ps: @beginspecial @setspecial initmatrix\n',
+    '0.1 setgray #2 #3 translate #4 dup scale}\n',
+    '\\special{ps: plotfile #1}\n',
+    '\\special{ps: @endspecial}\n',
+    '}\n',
+    '\\BackgroundEPS{MCNLogo-grey.eps}{60}{60}{1.5}\n',
     '\\begin{document}\n',
     TitleRow]
 
     BeginTable = [
     ArrayStretch,
     '\\begin{longtable}{p{0.5cm}p{1.2cm}p{1.0cm}p{9cm}p{6cm}}\n',
-    '& verschil (km) & totaal (km) & \\newline Aanwijzing & \\newline Straatnaam/Opmerking\\\ \hline \endhead\n']
+    '& diff (km) & total (km) & \\newline Direction & \\newline Streetname/Remark\\\ \hline \endhead\n']
 
     PostAmble = [
     '\\hfill\n',
@@ -193,15 +230,27 @@ def FormatRoute(RouteList, FrontMatter, Title, Stretch, Draft):
         NewRouteList.append(Row)
     for Row in RouteList:
         RowNum += 1
-        RowNumStr = '\\textit{' +`RowNum` +'}'
+        if AltRouteStart.match(Row[1]):
+            KeepRowNum = RowNum
+            RowNum = AltRowNum
+            Row[1] = Row[1][1:]
+            UseAltRowNum = True
+        elif AltRouteEnd.match(Row[1]):
+            RowNum = KeepRowNum
+            Row[1] = Row[1][1:]
+            UseAltRowNum = False
+        if UseAltRowNum:
+            RowNumStr = '\\textit{' + decToRoman(RowNum) +'}'
+        else:
+            RowNumStr = '\\textit{' +`RowNum` +'}'
         DepDF = DF = '\\dotfill & '
         if PlaatsNaam.match(Row[1]):
             Row[1] = '\\underline{\\textbf{' + Row[1][1:] + '}}'
-            RowNumStr = '' # No linenumbers together with town-names
+            RowNumStr = '' # No linenumbers together with community name-signs
             DepDF = '& '
             RowNum -=1
         if Comment.match(Row[2]):
-            Row[2] = '\\underline{\\emph{' + Row[2][1:] + '}}' #[1:] om de hash kwijt te raken
+            Row[2] = '\\underline{\\emph{' + Row[2][1:] + '}}' #[1:] to remove the hash.
             DepDF = '& '
             RowNumStr = '' # No linenumbers together with comments in 2nd field
             RowNum -=1
@@ -232,7 +281,7 @@ def WriteFormattedRoute(NewRouteList,FmtRouteFile):
             f.write(Row)
         f.close()
     except IOError, msg:
-        usage("Kan niet schrijven naar %s.\n %s" % (repr(FmtRouteFile), str(msg)))
+        usage("Cannot write to %s.\n %s" % (repr(FmtRouteFile), str(msg)))
 
 # Main program: parse command line and start processing
 def main():
@@ -265,7 +314,7 @@ def main():
             ZPRedition = a
     try:
         if float(Stretch) < 0.7 or float(Stretch) > 3.0:
-            print "Relatieve afstand -s %s niet geldig. -s wordt 1.0" % Stretch
+            print "Relative distance -s %s not valid. -s will be 1.0" % Stretch
             Stretch = '1.0'
     except ValueError, msg:
         usage(msg)
@@ -279,19 +328,19 @@ def main():
     else:
         RouteFile, FmtRouteFile, Title = UserInput()
     if ZPRedition:
-        print "Dit is een Zeepaardjes versie"
+        print "This is a 'Zeepaardjes' version"
         Title = ZPRedition + 'e ' + Title
     RouteList, InvalidLines = ReadTSVRoute(RouteFile)
-    print "De TSV route file is gelezen uit %s (%d regels, %d ongeldig)\n" % (RouteFile,len(RouteList),InvalidLines)
-    print "De titel wordt: \'%s\'\n" % Title
-    print "De afstand tussen de rijen wordt %sx groter" % Stretch
+    print "The route file is read from %s (%d lines, %d invalid)\n" % (RouteFile,len(RouteList),InvalidLines)
+    print "The title will be: \'%s\'\n" % Title
+    print "The distance between the rows will be %sx larger" % Stretch
     FrontMatter = MakeFrontMatter(ZPRedition)
     NewRouteList = FormatRoute(RouteList, FrontMatter, Title, Stretch, Draft)
-    print; print "De LaTeX route file wordt geschreven in %s\n" % FmtRouteFile
+    print; print "The LaTeX route file will be written in %s\n" % FmtRouteFile
     WriteFormattedRoute(NewRouteList,FmtRouteFile)
-    print "Gedaan.."
-    print "Edit de LaTeX file eventueel om lege regels te verwijderen ed., en compileer"
-    print "de gegenereerde file met:  pdflatex %s.\n" % FmtRouteFile
+    print "Done.."
+    print "Edit the LaTeX file if neccessary to remove empty lines etc., and compile"
+    print "the generated file with:  build-mcnroute.sh %s.\n" % FmtRouteFile
     return
 
 if __name__ == '__main__':
